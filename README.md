@@ -33,6 +33,14 @@ into the session's dev-mods folder for hot reload. Check a mod with
 `claude plugin validate <mod folder>`. CI runs the same check on every push
 and pull request.
 
+## Releasing
+
+A mod's `version` in its `.claude-plugin/plugin.json` is the cache key that
+installs use. A PR that changes a mod must bump that mod's version, or CI
+fails the PR. When the PR merges, CI tags `<mod>-v<version>` and creates a
+GitHub release. The release notes are the titles of the merged PRs, so write
+each PR title as a release note.
+
 ## License
 
 MIT
