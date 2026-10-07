@@ -1,0 +1,16 @@
+{
+  "name": "mods",
+  "owner": { "name": "voitta-ai" },
+  "plugins": [
+    {
+      "name": "cw-chart",
+      "source": "./cw-chart",
+      "description": "Opens a CloudWatch metric widget as a live chart pane with range, pan, refresh and click-to-ask"
+    },
+    {
+      "name": "image-mirror",
+      "source": "./image-mirror",
+      "description": "Draws each PNG Claude reads inline in the terminal transcript, under its Read row"
+    }
+  ]
+}

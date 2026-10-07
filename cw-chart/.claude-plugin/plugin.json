@@ -1,0 +1,6 @@
+{
+  "name": "cw-chart",
+  "version": "0.1.0",
+  "description": "Opens a CloudWatch metric widget as a live chart pane with range, pan, refresh and click-to-ask",
+  "types": "./types/index.d.ts"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "image-mirror",
+  "version": "0.1.0",
+  "description": "Draws each PNG Claude reads inline in the terminal transcript, under its Read row"
+}
