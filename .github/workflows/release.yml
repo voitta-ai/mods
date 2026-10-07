@@ -1,0 +1,98 @@
+name: release
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+    # No paths-ignore: version-bumped is meant to be a required status check,
+    # and a required check that never runs leaves the PR unmergeable. The job
+    # always runs and decides per mod whether a bump is owed.
+
+permissions:
+  contents: read
+
+# Every mod is its own plugin, and its plugin.json version is the cache key
+# for ~/.claude/plugins/cache/<marketplace>/<mod>/<version>/: an unchanged
+# version means no install ever re-extracts. So each mod is its own release
+# stream, tagged <mod>-v<version>, with no repo-wide version to keep in step.
+jobs:
+  # PR side. A mod whose files changed must advance its own version.
+  version-bumped:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Deep enough to resolve a merge-base against the PR base; a shallow
+          # checkout makes the three-dot diff below see every path as changed.
+          fetch-depth: 0
+
+      - name: Every changed mod must bump its version
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin "$BASE"
+          status=0
+          for manifest in */.claude-plugin/plugin.json; do
+            mod=${manifest%%/*}
+            if git diff --quiet FETCH_HEAD...HEAD -- "$mod/"; then
+              continue
+            fi
+            new=$(jq -r .version "$manifest")
+            if ! git cat-file -e "FETCH_HEAD:$manifest" 2>/dev/null; then
+              echo "$mod: new mod at $new"
+              continue
+            fi
+            old=$(git show "FETCH_HEAD:$manifest" | jq -r .version)
+            if [ "$old" = "$new" ]; then
+              echo "::error file=$manifest::$mod changed but its version is still $old - bump it."
+              status=1
+            elif [ "$(printf '%s\n%s\n' "$old" "$new" | sort -V | head -1)" != "$old" ]; then
+              echo "::error file=$manifest::$mod version $new does not advance past $old."
+              status=1
+            else
+              echo "$mod: $old -> $new"
+            fi
+          done
+          exit "$status"
+
+  # master side. Tag and release every mod whose version has no tag yet. gh
+  # creates the tag itself at --target, so it lands on master's merge commit.
+  # Notes are the merged PR titles since the mod's previous tag: that is the
+  # changelog, so a PR title is a release note.
+  tag-and-release:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag and release each mod whose version is new
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for manifest in */.claude-plugin/plugin.json; do
+            mod=${manifest%%/*}
+            version=$(jq -r .version "$manifest")
+            tag="$mod-v$version"
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "$tag is already tagged; nothing to release."
+              continue
+            fi
+            # Start the notes at this mod's previous tag, not the repo's
+            # latest release, which may belong to another mod.
+            prev=$(git tag --list "$mod-v*" --sort=-v:refname | head -1)
+            start=()
+            if [ -n "$prev" ]; then
+              start=(--notes-start-tag "$prev")
+            fi
+            gh release create "$tag" \
+              --title "$mod v$version" \
+              --generate-notes \
+              --target "$GITHUB_SHA" \
+              "${start[@]}"
+          done
